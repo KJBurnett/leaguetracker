@@ -3,15 +3,12 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Management;
+using Newtonsoft.Json;
 
 namespace leaguetracker
 {
     class Program
     {
-        private const string TrackerFilePath = "C:\\Users\\burne\\OneDrive\\Documents\\leaguetracker\\tracker.csv";
-        private const string vscodeFilePath = "C:\\Users\\burne\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe";
-        private const string appPath = "E:\\Games\\Riot Games\\League of Legends\\LeagueClient.exe";
-        private const string AppName = "League of Legends";
         static bool exitRequested = false;
 
         static void Main()
@@ -22,10 +19,13 @@ namespace leaguetracker
                 exitRequested = true;
             };
 
+            string configFilePath = "config.json";
+            var config = ReadConfig(configFilePath);
+
             Console.WriteLine("Welcome to the League of Legends Playtime Tracker.");
 
-            double totalSeconds = GetTotalPlaytimeFromCsv();
-            Console.WriteLine($"Total playtime: {FormatSeconds(totalSeconds)}\nLast Time Played: {GetLastTimePlayedFromCsv()}");
+            double totalSeconds = GetTotalPlaytimeFromCsv(config);
+            Console.WriteLine($"Total playtime: {FormatSeconds(totalSeconds)}\nLast Time Played: {GetLastTimePlayedFromCsv(config)}");
 
             while (true)
             {
@@ -41,10 +41,10 @@ namespace leaguetracker
                     switch (choice)
                     {
                         case 1:
-                            StartLeagueOfLegends();
+                            StartLeagueOfLegends(config);
                             break;
                         case 2:
-                            Process.Start(vscodeFilePath, TrackerFilePath);
+                            Process.Start(config.TrackerFilePath);
                             break;
                         case 3:
                             return; // Exit the program
@@ -65,17 +65,17 @@ namespace leaguetracker
             }
         }
 
-        static string GetLastTimePlayedFromCsv()
+        static string GetLastTimePlayedFromCsv(AppConfig config)
         {
             const string defaultHasNotBeenPlayed = "This game has not been played yet.";
 
-            if (!File.Exists(TrackerFilePath))
+            if (!File.Exists(config.TrackerFilePath))
             {
-                File.WriteAllText(TrackerFilePath, "App Name,Time Played,DateTime Started,DateTime Ended\n");
+                File.WriteAllText(config.TrackerFilePath, "App Name,Time Played,DateTime Started,DateTime Ended\n");
                 return defaultHasNotBeenPlayed;
             }
 
-            var lastLine = File.ReadLines(TrackerFilePath).LastOrDefault();
+            var lastLine = File.ReadLines(config.TrackerFilePath).LastOrDefault();
             if (string.IsNullOrEmpty(lastLine) || lastLine.StartsWith("App Name,"))
             {
                 return defaultHasNotBeenPlayed;
@@ -92,28 +92,28 @@ namespace leaguetracker
         }
 
 
-        static double GetTotalPlaytimeFromCsv()
+        static double GetTotalPlaytimeFromCsv(AppConfig config)
         {
-            if (!File.Exists(TrackerFilePath))
+            if (!File.Exists(config.TrackerFilePath))
             {
-                File.WriteAllText(TrackerFilePath, "App Name,Time Played,DateTime Started,DateTime Ended\n");
+                File.WriteAllText(config.TrackerFilePath, "App Name,Time Played,DateTime Started,DateTime Ended\n");
                 return 0;
             }
 
-            var lines = File.ReadAllLines(TrackerFilePath).Skip(1); // Skip header
+            var lines = File.ReadAllLines(config.TrackerFilePath).Skip(1); // Skip header
             return lines.Sum(line => double.Parse(line.Split(',')[1]));
         }
 
-        static void AppendToCsv(string appName, double timePlayed, DateTime start, DateTime end)
+        static void AppendToCsv(AppConfig config, double timePlayed, DateTime start, DateTime end)
         {
-            var newRow = $"{appName},{timePlayed},{start},{end}\n";
-            File.AppendAllText(TrackerFilePath, newRow);
+            var newRow = $"{config.AppName},{timePlayed},{start},{end}\n";
+            File.AppendAllText(config.TrackerFilePath, newRow);
         }
 
-        static void StartLeagueOfLegends()
+        static void StartLeagueOfLegends(AppConfig config)
         {
             DateTime startTime = DateTime.Now;
-            Process process = Process.Start(appPath);
+            Process process = Process.Start(config.GameClientPath);
 
             while (!HasProcessExited(process.Id))
             {
@@ -123,7 +123,7 @@ namespace leaguetracker
             DateTime endTime = DateTime.Now;
             double elapsedSeconds = (endTime - startTime).TotalSeconds;
 
-            AppendToCsv(AppName, elapsedSeconds, startTime, endTime);
+            AppendToCsv(config, elapsedSeconds, startTime, endTime);
             Console.WriteLine($"You played for: {FormatSeconds(elapsedSeconds)}");
         }
 
@@ -162,5 +162,36 @@ namespace leaguetracker
             // If we're here, the main process is still running
             return false;
         }
+
+        public static AppConfig ReadConfig(string configFilePath)
+        {
+            if (!File.Exists(configFilePath))
+            {
+                var defaultConfig = new AppConfig
+                {
+                    GameClientPath = "",
+                    AppName = "",
+                    TrackerFilePath = ""
+                };
+
+                Console.WriteLine("No config.json found, starting first-time configuration!\n");
+
+                Console.WriteLine("Please provide the path to the League of Legends game client:");
+                defaultConfig.GameClientPath = Console.ReadLine();
+
+                Console.WriteLine("Please provide the app name of the game client:");
+                defaultConfig.AppName = Console.ReadLine();
+
+                Console.WriteLine("Please provide the file path where the tracker.csv should be stored:");
+                defaultConfig.TrackerFilePath = Console.ReadLine();
+
+                File.WriteAllText(configFilePath, JsonConvert.SerializeObject(defaultConfig, Formatting.Indented));
+                return defaultConfig;
+            }
+
+            var configJson = File.ReadAllText(configFilePath);
+            return JsonConvert.DeserializeObject<AppConfig>(configJson);
+        }
+
     }
 }
