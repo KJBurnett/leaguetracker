@@ -44,7 +44,14 @@ namespace leaguetracker
                             StartLeagueOfLegends(config);
                             break;
                         case 2:
-                            Process.Start(config.TrackerFilePath);
+                            try
+                            {
+                                Process.Start("code", config.TrackerFilePath);
+                            }
+                            catch (Exception ex)
+                            {
+                                Process.Start("notepad", config.TrackerFilePath);
+                            }
                             break;
                         case 3:
                             return; // Exit the program
@@ -177,13 +184,14 @@ namespace leaguetracker
                 Console.WriteLine("No config.json found, starting first-time configuration!\n");
 
                 Console.WriteLine("Please provide the path to the League of Legends game client:");
-                defaultConfig.GameClientPath = Console.ReadLine();
+                defaultConfig.GameClientPath = Console.ReadLine().Replace("\"", string.Empty); // Ensure the user didn't accidentally use additional quotes.
+
 
                 Console.WriteLine("Please provide the app name of the game client:");
-                defaultConfig.AppName = Console.ReadLine();
+                defaultConfig.AppName = Console.ReadLine().Replace("\"", string.Empty);
 
                 Console.WriteLine("Please provide the file path where the tracker.csv should be stored:");
-                defaultConfig.TrackerFilePath = Console.ReadLine();
+                defaultConfig.TrackerFilePath = Console.ReadLine().Replace("\"", string.Empty);
 
                 File.WriteAllText(configFilePath, JsonConvert.SerializeObject(defaultConfig, Formatting.Indented));
                 return defaultConfig;
